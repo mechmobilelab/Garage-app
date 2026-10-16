@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Garage</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eef3f1;--card:#fbfdfc;--ink:#1c2b29;--mute:#51635f;--line:#d3dedb;--accent:#1b4d47;--on-accent:#fff;--good:#26775a;--soon:#9a6700;--over:#b3372a;--track:#dbe6e3;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1b1a;--card:#172725;--ink:#e6f0ee;--mute:#9db4b0;--line:#27403d;--accent:#6cc4b4;--on-accent:#0a1f1c;--good:#5fcf9b;--soon:#e8b23a;--over:#ef7b6c;--track:#243a37;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f1b1a;--card:#172725;--ink:#e6f0ee;--mute:#9db4b0;--line:#27403d;--accent:#6cc4b4;--on-accent:#0a1f1c;--good:#5fcf9b;--soon:#e8b23a;--over:#ef7b6c;--track:#243a37;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.55 Barlow,system-ui,sans-serif}
+main{max-width:640px;margin:0 auto;padding:20px 16px 48px}
+h1,h2{font-family:"Barlow Condensed","Arial Narrow",sans-serif;margin:0;letter-spacing:.01em}
+h1{font-size:38px;color:var(--accent)}
+h2{font-size:24px;margin-bottom:10px}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 2px 10px rgba(27,77,71,.07)}
+label{display:block;font-size:14px;font-weight:500;color:var(--mute);margin-bottom:4px}
+input,select,textarea{width:100%;font:inherit;color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid .full{grid-column:1/-1}
+button,.btn{font:inherit;font-weight:600;border:0;border-radius:12px;padding:12px 20px;min-height:46px;background:var(--accent);color:var(--on-accent);cursor:pointer;text-decoration:none;display:inline-block}
+button.ghost,.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+button.small{padding:8px 14px;min-height:40px;font-size:15px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tabs{display:flex;gap:8px;overflow-x:auto;margin-bottom:16px}
+.tabs button{white-space:nowrap}
+.tabs button:not(.on){background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.gauge{height:18px;border-radius:9px;background:var(--track);overflow:hidden;margin:12px 0 8px}
+.gauge div{height:100%;border-radius:9px;transition:width .5s ease}
+.status{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:30px;font-weight:700;line-height:1.1}
+.good{color:var(--good)}.soon{color:var(--soon)}.over{color:var(--over)}
+.mute{color:var(--mute);font-size:15px}
+ul{list-style:none;padding:0;margin:0}
+li.log{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+li.log:first-child{border-top:0}
+.empty{color:var(--mute);padding:8px 0}
+details summary{cursor:pointer;font-weight:600;color:var(--accent)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.gauge div{transition:none}}
+</style>
+</head>
+<body>
+<main>
+<div class="top" style="display:block"><h1>My Garage</h1><p class="mute" style="margin:2px 0 0">Keep track of your car and never miss an oil change.</p></div>
+<div class="tabs" id="tabs"></div>
+<div id="view"></div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+(function(){
+var sb=supabase.createClient("https://jfoaddxcezfkkncdidoa.supabase.co","sb_publishable_m30zt4Lx0u_nUvJWdYhAug_mAID9yQx");
+var S={user:null,cars:[],active:null,adding:false,mode:"in",msg:"",loading:true};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function $(id){return document.getElementById(id)}
+function iso(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function today(){return iso(new Date())}
+function fmtDate(s){var p=s.split("-");return new Date(+p[0],+p[1]-1,+p[2]).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"})}
+function addMonths(s,n){var p=s.split("-");return new Date(+p[0],+p[1]-1+n,+p[2])}
+function num(n){return Number(n).toLocaleString()}
+function car(){return S.cars.filter(function(c){return c.id===S.active})[0]}
+function sortedLogs(c){return c.logs.slice().sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:b.miles-a.miles})}
+function fail(e){alert(e&&e.message?e.message:"Something went wrong. Please try again.")}
+async function load(){
+  var r=await sb.from("cars").select("*, oil_changes(*)").order("created_at");
+  if(r.error){fail(r.error);S.loading=false;render();return}
+  S.cars=r.data.map(function(c){return{id:c.id,year:c.year,make:c.make,model:c.model,miles:c.miles,intMiles:c.int_miles,intMonths:c.int_months,logs:c.oil_changes.map(function(l){return{id:l.id,date:l.date,miles:l.miles,notes:l.notes||""}})}});
+  if(!S.cars.some(function(c){return c.id===S.active}))S.active=S.cars.length?S.cars[0].id:null;
+  S.loading=false;render();
+}
+async function q(p){var r=await p;if(r.error){fail(r.error);return false}await load();return true}
+function tabs(){
+  if(!S.user){$("tabs").innerHTML="";return}
+  var h=S.cars.map(function(c){return '<button class="'+(c.id===S.active&&!S.adding?'on':'')+'" data-car="'+c.id+'">'+esc(c.year+" "+c.make+" "+c.model)+'</button>'}).join("");
+  $("tabs").innerHTML=h+'<button class="ghost small" id="addCar">+ Add car</button>';
+}
+function foot(){return '<p class="mute" style="text-align:center">Signed in as '+esc(S.user.email)+' &nbsp;|&nbsp; <button class="ghost small" id="out">Sign out</button></p>'}
+function render(){
+  tabs();
+  if(S.loading){$("view").innerHTML='<p class="mute">Loading your garage...</p>';return}
+  if(!S.user){renderAuth();return}
+  if(S.adding||!S.cars.length){renderForm();return}
+  renderCar();
+}
+function renderAuth(){
+  var up=S.mode==="up";
+  $("view").innerHTML='<form class="card" id="authForm"><h2>'+(up?"Create your account":"Sign in")+'</h2><p class="mute" style="margin-top:0">Your cars and oil changes are saved to your account and work on any device.</p><div class="grid"><div class="full"><label for="em">Email</label><input id="em" type="email" autocomplete="email" required></div><div class="full"><label for="pw">Password</label><input id="pw" type="password" minlength="6" autocomplete="'+(up?"new-password":"current-password")+'" required></div></div>'+(S.msg?'<p role="status" style="margin:12px 0 0">'+esc(S.msg)+'</p>':'')+'<div class="row" style="margin-top:14px"><button id="authGo">'+(up?"Create account":"Sign in")+'</button><button type="button" class="ghost" id="swap">'+(up?"I already have an account":"Create an account")+'</button></div></form>';
+  $("swap").onclick=function(){S.mode=up?"in":"up";S.msg="";renderAuth()};
+  $("authForm").onsubmit=async function(e){
+    e.preventDefault();
+    var em=$("em").value.trim(),pw=$("pw").value,r;
+    if(up){
+      r=await sb.auth.signUp({email:em,password:pw});
+      if(r.error)S.msg=r.error.message;
+      else if(!r.data.session){S.msg="Check your email for a confirmation link, then sign in.";S.mode="in"}
+    }else{
+      r=await sb.auth.signInWithPassword({email:em,password:pw});
+      if(r.error)S.msg=r.error.message;
+    }
+    if(!S.user)renderAuth();
+  };
+}
+function renderForm(){
+  var yr=new Date().getFullYear()+1;
+  $("view").innerHTML='<form class="card" id="carForm" onsubmit="return false"><h2>'+(S.cars.length?"Add a car":"Add your first car")+'</h2><div class="grid">'
+  +'<div><label for="year">Year</label><input id="year" type="number" min="1950" max="'+yr+'" placeholder="2013" required></div>'
+  +'<div><label for="make">Make</label><input id="make" placeholder="Toyota" required></div>'
+  +'<div class="full"><label for="model">Model</label><input id="model" placeholder="Corolla" required></div>'
+  +'<div><label for="miles">Current mileage</label><input id="miles" type="number" min="0" placeholder="98000" required></div>'
+  +'<div><label for="im">Oil change every (miles)</label><input id="im" type="number" min="500" value="5000"></div>'
+  +'<div class="full"><label for="imo">Or every (months), whichever comes first</label><input id="imo" type="number" min="1" value="6"></div>'
+  +'</div><div class="row" style="margin-top:14px"><button id="saveCar">Save car</button>'+(S.cars.length?'<button class="ghost" id="cancel">Cancel</button>':'')+'</div></form>'+foot();
+  $("saveCar").onclick=async function(){
+    if(!$("carForm").reportValidity())return;
+    var r=await sb.from("cars").insert({year:+$("year").value,make:$("make").value.trim(),model:$("model").value.trim(),miles:+$("miles").value,int_miles:+$("im").value||5000,int_months:+$("imo").value||6}).select().single();
+    if(r.error){fail(r.error);return}
+    S.active=r.data.id;S.adding=false;await load();
+  };
+  if($("cancel"))$("cancel").onclick=function(){S.adding=false;render()};
+}
+function renderCar(){
+  var c=car(),logs=sortedLogs(c),last=logs[0],h="";
+  h+='<section class="card"><h2>Next oil change</h2>';
+  if(!last){
+    h+='<p class="empty">No oil changes logged yet. Add your most recent one below and the next due date will appear here.</p>';
+  }else{
+    var dueMiles=last.miles+c.intMiles,dueD=addMonths(last.date,c.intMonths),dueISO=iso(dueD);
+    var left=dueMiles-c.miles,now=new Date();now.setHours(0,0,0,0);
+    var days=Math.round((dueD-now)/864e5);
+    var used=Math.min(Math.max(Math.max((c.miles-last.miles)/c.intMiles,1-days/(c.intMonths*30.4)),0),1);
+    var cls=(left<=0||days<=0)?"over":(left<=500||days<=30)?"soon":"good";
+    var msg=cls==="over"?"Overdue":cls==="soon"?"Due soon":"On schedule";
+    h+='<div class="status '+cls+'">'+msg+'</div>';
+    h+='<div class="gauge" role="img" aria-label="'+Math.round(used*100)+' percent of interval used"><div style="width:'+Math.round(used*100)+'%;background:var(--'+cls+')"></div></div>';
+    h+='<div class="mute">'+(left>=0?num(left)+' miles left':num(-left)+' miles over')+' &nbsp;|&nbsp; '+(days>=0?days+' days left':(-days)+' days over')+'</div>';
+    h+='<p style="margin:10px 0 12px">Due at <b>'+num(dueMiles)+' miles</b> or by <b>'+fmtDate(dueISO)+'</b>, whichever comes first.</p>';
+    var gc="https://calendar.google.com/calendar/render?action=TEMPLATE&text="+encodeURIComponent("Oil change: "+c.year+" "+c.make+" "+c.model)+"&dates="+dueISO.replace(/-/g,"")+"/"+iso(new Date(dueD.getFullYear(),dueD.getMonth(),dueD.getDate()+1)).replace(/-/g,"")+"&details="+encodeURIComponent("Or at "+num(dueMiles)+" miles, whichever comes first.");
+    h+='<a class="btn ghost small" href="'+gc+'" target="_blank" rel="noopener">Add reminder to Google Calendar</a>';
+  }
+  h+='</section>';
+  h+='<section class="card"><h2>Mileage</h2><div class="row"><input id="mi" type="number" min="0" value="'+c.miles+'" style="max-width:160px" aria-label="Current mileage"><button id="updMi">Update mileage</button></div><p class="mute" style="margin-bottom:0">Keep this current so the countdown stays accurate.</p></section>';
+  h+='<form class="card" id="logForm" onsubmit="return false"><h2>Log an oil change</h2><div class="grid"><div><label for="ld">Date</label><input id="ld" type="date" value="'+today()+'" required></div><div><label for="lm">Mileage</label><input id="lm" type="number" min="0" value="'+c.miles+'" required></div><div class="full"><label for="ln">Notes (optional)</label><input id="ln" placeholder="Synthetic 0W-20, new filter"></div></div><div style="margin-top:14px"><button id="addLog">Save oil change</button></div></form>';
+  h+='<section class="card"><h2>History</h2>';
+  if(!logs.length)h+='<p class="empty">Nothing here yet.</p>';
+  else h+='<ul>'+logs.map(function(l){return '<li class="log"><div><b>'+fmtDate(l.date)+'</b> at '+num(l.miles)+' miles'+(l.notes?'<div class="mute">'+esc(l.notes)+'</div>':'')+'</div><button class="ghost small" data-del="'+l.id+'" aria-label="Delete entry">Delete</button></li>'}).join("")+'</ul>';
+  h+='</section>';
+  h+='<details class="card"><summary>Car settings</summary><div class="grid" style="margin-top:12px"><div><label for="sm">Interval (miles)</label><input id="sm" type="number" min="500" value="'+c.intMiles+'"></div><div><label for="smo">Interval (months)</label><input id="smo" type="number" min="1" value="'+c.intMonths+'"></div></div><div class="row" style="margin-top:12px"><button id="saveSet" class="small">Save settings</button><button id="delCar" class="ghost small">Remove this car</button></div></details>'+foot();
+  $("updMi").onclick=function(){var v=+$("mi").value;if(v>=0)q(sb.from("cars").update({miles:v}).eq("id",c.id))};
+  $("addLog").onclick=async function(){
+    if(!$("logForm").reportValidity())return;
+    var m=+$("lm").value;
+    var r=await sb.from("oil_changes").insert({car_id:c.id,date:$("ld").value,miles:m,notes:$("ln").value.trim()||null});
+    if(r.error){fail(r.error);return}
+    if(m>c.miles)await sb.from("cars").update({miles:m}).eq("id",c.id);
+    await load();
+  };
+  $("saveSet").onclick=function(){q(sb.from("cars").update({int_miles:+$("sm").value||c.intMiles,int_months:+$("smo").value||c.intMonths}).eq("id",c.id))};
+  $("delCar").onclick=function(){if(confirm("Remove this car and its history?"))q(sb.from("cars").delete().eq("id",c.id))};
+}
+document.addEventListener("click",function(e){
+  var t=e.target;
+  if(t.id==="addCar"){S.adding=true;render();return}
+  if(t.id==="out"){sb.auth.signOut();return}
+  if(t.dataset&&t.dataset.car){S.active=t.dataset.car;S.adding=false;render();return}
+  if(t.dataset&&t.dataset.del)q(sb.from("oil_changes").delete().eq("id",t.dataset.del));
+});
+sb.auth.onAuthStateChange(function(ev,session){
+  var was=S.user&&S.user.id;
+  S.user=session?session.user:null;
+  if(S.user){S.msg="";if(was!==S.user.id){S.loading=true;render();setTimeout(load,0)}}
+  else{S.cars=[];S.active=null;S.adding=false;S.loading=false;render()}
+});
+})();
+</script>
+</body>
+</html>
